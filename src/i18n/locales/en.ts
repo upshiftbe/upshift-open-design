@@ -49,23 +49,22 @@ export const en: Dict = {
   'settings.kicker': 'Settings',
   'settings.title': 'Execution & model',
   'settings.subtitle':
-    'Choose between a local code-agent CLI and the Anthropic API (BYOK). Your API key is stored only in this browser.',
+    'Choose between a local code-agent CLI and an HTTP API (Anthropic BYOK or a local OpenAI-compatible server such as LM Studio). Keys stay in this browser.',
   'settings.modeAria': 'Execution mode',
   'settings.modeDaemon': 'Local CLI',
   'settings.modeDaemonHelp': 'Run via a code-agent CLI on your machine',
   'settings.modeDaemonOffline': 'Daemon is not running',
   'settings.modeDaemonOfflineMeta': 'daemon offline',
   'settings.modeDaemonInstalledMeta': '{count} installed',
-  'settings.modeApi': 'Anthropic API',
-  'settings.modeApiMeta': 'BYOK',
+  'settings.modeApi': 'API',
+  'settings.modeApiMeta': 'Anthropic or local LLM',
   'settings.codeAgent': 'Code agent',
-  'settings.codeAgentHint':
-    'Detected by scanning your PATH. Pick the CLI you want generations to flow through.',
+  'settings.codeAgentHint': 'Detected by scanning your PATH. Pick the CLI you want generations to flow through.',
   'settings.rescan': '↻ Rescan',
   'settings.rescanTitle': 'Re-scan PATH',
   'settings.noAgentsDetected':
     'No agents detected yet. Install one of Claude Code, Codex, Gemini CLI, OpenCode, Cursor Agent, Qwen, or GitHub Copilot CLI, then click Rescan.',
-  'settings.apiSection': 'Anthropic API',
+  'settings.apiSection': 'HTTP API',
   'settings.apiKey': 'API key',
   'settings.showKey': 'Show key',
   'settings.hideKey': 'Hide key',
@@ -74,7 +73,19 @@ export const en: Dict = {
   'settings.model': 'Model',
   'settings.baseUrl': 'Base URL',
   'settings.apiHint':
-    'Calls go directly from this browser to the base URL you set. No proxy. The key never leaves localStorage.',
+    'Anthropic: calls go directly from this browser to the base URL you set. The key never leaves localStorage.',
+  'settings.apiProviderAria': 'API provider',
+  'settings.providerAnthropic': 'Anthropic',
+  'settings.providerAnthropicMeta': 'Messages API · BYOK',
+  'settings.providerOpenAiLocal': 'OpenAI-compatible',
+  'settings.providerOpenAiLocalMeta': 'LM Studio, llama.cpp, …',
+  'settings.apiHintOpenAiLocal':
+    'Traffic is proxied through the Open Design daemon on this machine (same origin) so the browser can reach localhost without CORS issues. Start LM Studio (or your server) and run the app with the daemon (e.g. pnpm dev:all). API key is optional if the server does not require one.',
+  'settings.placeholderApiKeyAnthropic': 'sk-ant-api03-…',
+  'settings.placeholderApiKeyOptional': 'Optional — leave blank if unused',
+  'settings.localOpenAiApi': 'Local LLM',
+  'settings.lmStudioCardTitle': 'LM Studio',
+  'settings.lmStudioCardMeta': 'Local OpenAI API · default :1234',
   'settings.skipForNow': 'Skip for now',
   'settings.getStarted': 'Get started',
   'settings.envConfigure': 'Configure execution mode',
@@ -114,8 +125,7 @@ export const en: Dict = {
   'newproj.toggleSpeakerNotes': 'Use speaker notes',
   'newproj.toggleSpeakerNotesHint': 'Less text on slides — keep talking points in notes.',
   'newproj.toggleAnimations': 'Include animations',
-  'newproj.toggleAnimationsHint':
-    'Add motion (entrance, hover, transitions) on top of the template.',
+  'newproj.toggleAnimationsHint': 'Add motion (entrance, hover, transitions) on top of the template.',
   'newproj.templateLabel': 'Template',
   'newproj.noTemplatesTitle': 'No templates yet',
   'newproj.noTemplatesBody':
@@ -125,8 +135,7 @@ export const en: Dict = {
   'newproj.filePlural': 'files',
   'newproj.create': 'Create',
   'newproj.createFromTemplate': 'Create from template',
-  'newproj.createDisabledTitle':
-    'Save a project as a template first (Share menu inside any project).',
+  'newproj.createDisabledTitle': 'Save a project as a template first (Share menu inside any project).',
   'newproj.importClaudeZip': 'Import Claude Design ZIP',
   'newproj.importClaudeZipTitle': 'Import a Claude Design .zip export',
   'newproj.importingClaudeZip': 'Importing…',
@@ -239,8 +248,7 @@ export const en: Dict = {
   'chat.new': 'New',
   'chat.emptyConversations': 'No conversations yet.',
   'chat.deleteConversation': 'Delete conversation',
-  'chat.deleteConversationConfirm':
-    'Delete "{title}"? This removes its messages.',
+  'chat.deleteConversationConfirm': 'Delete "{title}"? This removes its messages.',
   'chat.untitledConversation': 'Untitled conversation',
   'chat.startTitle': 'Start a conversation',
   'chat.startHint':
@@ -250,10 +258,8 @@ export const en: Dict = {
   'chat.scrollToLatest': 'Scroll to latest',
   'chat.you': 'You',
   'chat.openFile': 'Open {name}',
-  'chat.composerPlaceholder':
-    'Describe the design you want — paste or drop images, or @ a file…',
-  'chat.composerHint':
-    '⌘/Ctrl + Enter to send · paste images · @ to reference files',
+  'chat.composerPlaceholder': 'Describe the design you want — paste or drop images, or @ a file…',
+  'chat.composerHint': '⌘/Ctrl + Enter to send · paste images · @ to reference files',
   'chat.cliSettingsTitle': 'CLI & model settings',
   'chat.cliSettingsAria': 'Open CLI and model settings',
   'chat.attachTitle': 'Attach files (or paste / drop)',
@@ -269,6 +275,8 @@ export const en: Dict = {
   'chat.importSkills': 'Skills and design systems',
   'chat.importProject': 'Reference another project',
   'chat.send': 'Send',
+  'chat.localLlmNeedsDaemon':
+    'Local OpenAI-compatible chat needs the Open Design daemon running (it proxies requests to your LLM server). Start it with pnpm dev:all or the od CLI, then try again.',
   'chat.stop': 'Stop',
   'chat.removeAria': 'Remove {name}',
   'chat.example1Title': 'Editorial pitch deck',
@@ -305,8 +313,7 @@ export const en: Dict = {
   'designFiles.upload': 'Upload files',
   'designFiles.pasteText': 'Paste as text file',
   'designFiles.newSketch': 'New sketch',
-  'designFiles.empty':
-    'Nothing here yet. Drop files below, or create a sketch / paste text.',
+  'designFiles.empty': 'Nothing here yet. Drop files below, or create a sketch / paste text.',
   'designFiles.refresh': 'Refresh',
   'designFiles.delete': 'Delete',
   'designFiles.searchPlaceholder': 'Search files…',
@@ -317,8 +324,7 @@ export const en: Dict = {
   'designFiles.openInTab': 'Open in tab',
   'designFiles.download': 'Download',
   'designFiles.dropTitle': '⤓ Drop files here',
-  'designFiles.dropDesc':
-    'Images, docs, references, Figma links, or folders — Claude will use them as context.',
+  'designFiles.dropDesc': 'Images, docs, references, Figma links, or folders — Claude will use them as context.',
   'designFiles.upload.title': 'Upload files',
   'designFiles.paste.title': 'Paste text as a file',
   'designFiles.upload.label': 'Upload',
@@ -359,8 +365,7 @@ export const en: Dict = {
   'fileViewer.copied': 'Copied!',
   'fileViewer.share': 'Share',
   'fileViewer.binaryMeta': 'Binary · {size}',
-  'fileViewer.binaryNote':
-    'Binary file ({size} bytes). Download or open from disk to inspect.',
+  'fileViewer.binaryNote': 'Binary file ({size} bytes). Download or open from disk to inspect.',
   'fileViewer.download': 'Download',
   'fileViewer.open': 'Open',
   'fileViewer.imageMeta': 'Image · {size}',
@@ -393,8 +398,7 @@ export const en: Dict = {
   'fileViewer.exportPdf': 'Export as PDF',
   'fileViewer.exportPdfAllSlides': 'Export as PDF (all slides)',
   'fileViewer.exportPptxBusy': 'Wait for the current turn to finish.',
-  'fileViewer.exportPptxHint':
-    'Send a request to the agent to convert this design to PPTX.',
+  'fileViewer.exportPptxHint': 'Send a request to the agent to convert this design to PPTX.',
   'fileViewer.exportPptxNa': 'PPTX export is not available here.',
   'fileViewer.exportZip': 'Download as .zip',
   'fileViewer.exportHtml': 'Export as standalone HTML',
@@ -404,8 +408,7 @@ export const en: Dict = {
   'fileViewer.savedTemplateFail': 'Could not save template — try again.',
   'fileViewer.templateNamePrompt': 'Template name',
   'fileViewer.templateNameDefault': 'Untitled template',
-  'fileViewer.templateDescPrompt':
-    'Short description (optional — what makes this template useful?)',
+  'fileViewer.templateDescPrompt': 'Short description (optional — what makes this template useful?)',
 
   'questionForm.submit': 'Submit',
   'questionForm.skip': 'Skip',
@@ -425,7 +428,7 @@ export const en: Dict = {
   'agentPicker.modeChoose': 'Choose execution mode',
   'agentPicker.localCli': 'Local CLI',
   'agentPicker.daemonOff': 'daemon off',
-  'agentPicker.byok': 'Anthropic API · BYOK',
+  'agentPicker.byok': 'API · BYOK / local',
   'agentPicker.selectAgent': 'Select a detected code-agent CLI',
   'agentPicker.noAgents': 'no agents on PATH',
   'agentPicker.notInstalled': 'not installed',
@@ -467,8 +470,7 @@ export const en: Dict = {
   'assistant.statusRequesting': 'Sending request',
   'assistant.statusThinking': 'Thinking',
   'assistant.statusStreaming': 'Streaming',
-  'assistant.slowHint':
-    'Taking longer than usual. The form usually shows in 5–10s — you can Stop and rephrase.',
+  'assistant.slowHint': 'Taking longer than usual. The form usually shows in 5–10s — you can Stop and rephrase.',
   'assistant.verbEditing': 'Editing',
   'assistant.verbWriting': 'Writing',
   'assistant.verbReading': 'Reading',
@@ -481,11 +483,9 @@ export const en: Dict = {
   'qf.answered': 'answered',
   'qf.choose': 'Choose…',
   'qf.required': 'required',
-  'qf.lockedSubmitted':
-    'Answers sent — agent is using these for the rest of the session.',
+  'qf.lockedSubmitted': 'Answers sent — agent is using these for the rest of the session.',
   'qf.lockedPrev': 'This form is from a previous turn.',
-  'qf.hint':
-    "Pick what fits. Skip optional fields you don't care about — the agent will use sensible defaults.",
+  'qf.hint': "Pick what fits. Skip optional fields you don't care about — the agent will use sensible defaults.",
   'qf.submitDefault': 'Send answers',
   'qf.submitDisabledTitle': 'Fill in the required fields first',
   'qf.submitTitle': 'Send answers',

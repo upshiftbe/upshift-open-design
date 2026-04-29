@@ -39,28 +39,10 @@ const VISUALS: Record<string, Visual> = {
       const c = s / 2;
       const r = s * 0.32;
       return (
-        <g
-          transform={`rotate(15 ${c} ${c})`}
-          stroke="#10a37f"
-          strokeWidth={s * 0.07}
-          fill="none"
-          strokeLinecap="round"
-        >
+        <g transform={`rotate(15 ${c} ${c})`} stroke='#10a37f' strokeWidth={s * 0.07} fill='none' strokeLinecap='round'>
           <ellipse cx={c} cy={c} rx={r} ry={r * 0.45} />
-          <ellipse
-            cx={c}
-            cy={c}
-            rx={r}
-            ry={r * 0.45}
-            transform={`rotate(60 ${c} ${c})`}
-          />
-          <ellipse
-            cx={c}
-            cy={c}
-            rx={r}
-            ry={r * 0.45}
-            transform={`rotate(120 ${c} ${c})`}
-          />
+          <ellipse cx={c} cy={c} rx={r} ry={r * 0.45} transform={`rotate(60 ${c} ${c})`} />
+          <ellipse cx={c} cy={c} rx={r} ry={r * 0.45} transform={`rotate(120 ${c} ${c})`} />
         </g>
       );
     },
@@ -80,13 +62,7 @@ const VISUALS: Record<string, Visual> = {
       const off = s * 0.16;
       const arm = s * 0.12;
       return (
-        <g
-          stroke="#a7f3d0"
-          strokeWidth={s * 0.08}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
+        <g stroke='#a7f3d0' strokeWidth={s * 0.08} fill='none' strokeLinecap='round' strokeLinejoin='round'>
           <polyline points={`${c - off + arm},${c - arm} ${c - off},${c} ${c - off + arm},${c + arm}`} />
           <polyline points={`${c + off - arm},${c - arm} ${c + off},${c} ${c + off - arm},${c + arm}`} />
         </g>
@@ -103,7 +79,7 @@ const VISUALS: Record<string, Visual> = {
       return (
         <path
           d={`M ${c - o} ${c - o} L ${c + o * 0.9} ${c} L ${c} ${c + o * 0.2} L ${c - o * 0.05} ${c + o * 0.85} Z`}
-          fill="#ffffff"
+          fill='#ffffff'
         />
       );
     },
@@ -118,7 +94,7 @@ const VISUALS: Record<string, Visual> = {
       const eyeRx = s * 0.075;
       const eyeRy = s * 0.12;
       return (
-        <g fill="#ffffff">
+        <g fill='#ffffff'>
           <ellipse cx={c - eyeOff} cy={c} rx={eyeRx} ry={eyeRy} />
           <ellipse cx={c + eyeOff} cy={c} rx={eyeRx} ry={eyeRy} />
         </g>
@@ -133,9 +109,28 @@ const VISUALS: Record<string, Visual> = {
       const c = s / 2;
       const r = s * 0.26;
       return (
-        <g fill="none" stroke="#ffffff" strokeWidth={s * 0.07} strokeLinecap="round">
+        <g fill='none' stroke='#ffffff' strokeWidth={s * 0.07} strokeLinecap='round'>
           <circle cx={c} cy={c} r={r} />
           <line x1={c + r * 0.45} y1={c + r * 0.45} x2={c + r * 0.95} y2={c + r * 0.95} />
+        </g>
+      );
+    },
+  },
+  // LM Studio — indigo / violet (local OpenAI-compatible server).
+  'lm-studio': {
+    bg: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%)',
+    fg: '#f5f3ff',
+    glyph: (s) => {
+      const c = s / 2;
+      const w = s * 0.42;
+      const h = s * 0.28;
+      const x = c - w / 2;
+      const y = c - h / 2;
+      const rx = s * 0.04;
+      return (
+        <g fill='none' stroke='#f5f3ff' strokeWidth={s * 0.065} strokeLinecap='round'>
+          <rect x={x} y={y} width={w} height={h} rx={rx} ry={rx} />
+          <line x1={x + w * 0.28} y1={y + h * 0.72} x2={x + w * 0.72} y2={y + h * 0.72} />
         </g>
       );
     },
@@ -148,7 +143,7 @@ const FALLBACK: Visual = {
   glyph: (s) => {
     const c = s / 2;
     const r = s * 0.18;
-    return <circle cx={c} cy={c} r={r} fill="#ffffff" />;
+    return <circle cx={c} cy={c} r={r} fill='#ffffff' />;
   },
 };
 
@@ -163,7 +158,7 @@ export function AgentIcon({ id, size = 36, className }: Props) {
         background: v.bg,
         borderRadius: Math.round(size * 0.28),
       }}
-      aria-hidden="true"
+      aria-hidden='true'
     >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill={v.fg}>
         {v.glyph(size)}

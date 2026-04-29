@@ -1,5 +1,8 @@
 export type ExecMode = 'daemon' | 'api';
 
+/** BYOK API mode: Anthropic Messages API vs OpenAI-compatible (LM Studio, etc.). */
+export type ApiProvider = 'anthropic' | 'openai-compatible';
+
 // Per-CLI model + reasoning the user picked in the model menu. Each agent
 // keeps its own slot so flipping between Codex and Gemini doesn't reset the
 // other one's choice. Missing entries fall back to the agent's first
@@ -11,6 +14,8 @@ export interface AgentModelChoice {
 
 export interface AppConfig {
   mode: ExecMode;
+  /** Used when `mode === 'api'`. Defaults to `anthropic` when missing from storage. */
+  apiProvider: ApiProvider;
   apiKey: string;
   baseUrl: string;
   model: string;
@@ -143,13 +148,7 @@ export interface DesignSystemDetail extends DesignSystemSummary {
   body: string;
 }
 
-export type ProjectFileKind =
-  | 'html'
-  | 'image'
-  | 'sketch'
-  | 'text'
-  | 'code'
-  | 'binary';
+export type ProjectFileKind = 'html' | 'image' | 'sketch' | 'text' | 'code' | 'binary';
 
 export interface ProjectFile {
   name: string;

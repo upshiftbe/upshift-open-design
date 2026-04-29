@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { LOCALE_LABEL, LOCALES, useI18n } from '../i18n';
 import type { Locale } from '../i18n';
+import { LOCALE_LABEL, LOCALES, useI18n } from '../i18n';
+import type { AgentInfo, ApiProvider, AppConfig, ExecMode } from '../types';
 import { AgentIcon } from './AgentIcon';
-import {
-  CUSTOM_MODEL_SENTINEL,
-  isCustomModel,
-  renderModelOptions,
-} from './modelOptions';
-import type { AgentInfo, AppConfig, ExecMode } from '../types';
+import { CUSTOM_MODEL_SENTINEL, isCustomModel, renderModelOptions } from './modelOptions';
 
 interface Props {
   initial: AppConfig;
@@ -19,21 +15,9 @@ interface Props {
   onRefreshAgents: () => void;
 }
 
-const SUGGESTED_MODELS = [
-  'claude-opus-4-5',
-  'claude-sonnet-4-5',
-  'claude-haiku-4-5',
-];
+const SUGGESTED_MODELS = ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5'];
 
-export function SettingsDialog({
-  initial,
-  agents,
-  daemonLive,
-  welcome,
-  onSave,
-  onClose,
-  onRefreshAgents,
-}: Props) {
+export function SettingsDialog({ initial, agents, daemonLive, welcome, onSave, onClose, onRefreshAgents }: Props) {
   const { t, locale, setLocale } = useI18n();
   const [cfg, setCfg] = useState<AppConfig>(initial);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -46,89 +30,121 @@ export function SettingsDialog({
     }
   }, [daemonLive, cfg.mode]);
 
-  const installedCount = useMemo(
-    () => agents.filter((a) => a.available).length,
-    [agents],
-  );
+  const installedCount = useMemo(() => agents.filter((a) => a.available).length, [agents]);
 
   const setMode = (mode: ExecMode) => setCfg((c) => ({ ...c, mode }));
+
+  const setApiProvider = (p: ApiProvider) => {
+    setCfg((c) => {
+      const next: AppConfig = { ...c, apiProvider: p };
+      if (p === 'openai-compatible') {
+        if (/anthropic\.com/i.test(c.baseUrl) || !c.baseUrl.trim()) {
+          next.baseUrl = 'http://127.0.0.1:1234/v1';
+        }
+      } else if (
+        /127\.0\.0\.1:1234\/v1\/?$/i.test(c.baseUrl) ||
+        /^https?:\/\/localhost:1234\/v1\/?$/i.test(c.baseUrl)
+      ) {
+        next.baseUrl = 'https://api.anthropic.com';
+      }
+      return next;
+    });
+  };
+
+  const selectLmStudio = () => {
+    setCfg((c) => {
+      const next: AppConfig = { ...c, mode: 'api', apiProvider: 'openai-compatible' };
+      if (/anthropic\.com/i.test(c.baseUrl) || !c.baseUrl.trim()) {
+        next.baseUrl = 'http://127.0.0.1:1234/v1';
+      }
+      return next;
+    });
+  };
+
+  const lmStudioActive = cfg.mode === 'api' && cfg.apiProvider === 'openai-compatible';
+  const lmStudioShortcut = (
+    <button
+      type='button'
+      key='lm-studio-shortcut'
+      className={'agent-card' + (lmStudioActive ? ' active' : '')}
+      onClick={selectLmStudio}
+      aria-pressed={lmStudioActive}
+      title={t('settings.lmStudioCardMeta')}
+    >
+      <AgentIcon id='lm-studio' size={40} />
+      <div className='agent-card-body'>
+        <div className='agent-card-name'>{t('settings.lmStudioCardTitle')}</div>
+        <div className='agent-card-meta'>{t('settings.lmStudioCardMeta')}</div>
+      </div>
+      {lmStudioActive ? <span className='status-dot active' aria-hidden='true' /> : null}
+    </button>
+  );
 
   const canSave =
     cfg.mode === 'daemon'
       ? Boolean(cfg.agentId && agents.find((a) => a.id === cfg.agentId)?.available)
-      : Boolean(cfg.apiKey.trim() && cfg.model.trim() && cfg.baseUrl.trim());
+      : cfg.apiProvider === 'openai-compatible'
+        ? Boolean(cfg.model.trim() && cfg.baseUrl.trim())
+        : Boolean(cfg.apiKey.trim() && cfg.model.trim() && cfg.baseUrl.trim());
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div
-        className="modal modal-settings"
-        role="dialog"
-        aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="modal-head">
+    <div className='modal-backdrop' onClick={onClose}>
+      <div className='modal modal-settings' role='dialog' aria-modal='true' onClick={(e) => e.stopPropagation()}>
+        <header className='modal-head'>
           {welcome ? (
             <>
-              <span className="kicker">{t('settings.welcomeKicker')}</span>
+              <span className='kicker'>{t('settings.welcomeKicker')}</span>
               <h2>{t('settings.welcomeTitle')}</h2>
-              <p className="subtitle">{t('settings.welcomeSubtitle')}</p>
+              <p className='subtitle'>{t('settings.welcomeSubtitle')}</p>
             </>
           ) : (
             <>
-              <span className="kicker">{t('settings.kicker')}</span>
+              <span className='kicker'>{t('settings.kicker')}</span>
               <h2>{t('settings.title')}</h2>
-              <p className="subtitle">{t('settings.subtitle')}</p>
+              <p className='subtitle'>{t('settings.subtitle')}</p>
             </>
           )}
         </header>
 
-        <div
-          className="seg-control"
-          role="tablist"
-          aria-label={t('settings.modeAria')}
-        >
+        <div className='seg-control' role='tablist' aria-label={t('settings.modeAria')}>
           <button
-            type="button"
-            role="tab"
+            type='button'
+            role='tab'
             aria-selected={cfg.mode === 'daemon'}
             className={'seg-btn' + (cfg.mode === 'daemon' ? ' active' : '')}
             disabled={!daemonLive}
             onClick={() => setMode('daemon')}
-            title={
-              daemonLive
-                ? t('settings.modeDaemonHelp')
-                : t('settings.modeDaemonOffline')
-            }
+            title={daemonLive ? t('settings.modeDaemonHelp') : t('settings.modeDaemonOffline')}
           >
-            <span className="seg-title">{t('settings.modeDaemon')}</span>
-            <span className="seg-meta">
+            <span className='seg-title'>{t('settings.modeDaemon')}</span>
+            <span className='seg-meta'>
               {daemonLive
                 ? t('settings.modeDaemonInstalledMeta', { count: installedCount })
                 : t('settings.modeDaemonOfflineMeta')}
             </span>
           </button>
           <button
-            type="button"
-            role="tab"
+            type='button'
+            role='tab'
             aria-selected={cfg.mode === 'api'}
             className={'seg-btn' + (cfg.mode === 'api' ? ' active' : '')}
             onClick={() => setMode('api')}
           >
-            <span className="seg-title">{t('settings.modeApi')}</span>
-            <span className="seg-meta">{t('settings.modeApiMeta')}</span>
+            <span className='seg-title'>{t('settings.modeApi')}</span>
+            <span className='seg-meta'>{t('settings.modeApiMeta')}</span>
           </button>
         </div>
 
         {cfg.mode === 'daemon' ? (
-          <section className="settings-section">
-            <div className="section-head">
+          <section className='settings-section'>
+            <div className='section-head'>
               <div>
                 <h3>{t('settings.codeAgent')}</h3>
-                <p className="hint">{t('settings.codeAgentHint')}</p>
+                <p className='hint'>{t('settings.codeAgentHint')}</p>
               </div>
               <button
-                type="button"
-                className="ghost icon-btn"
+                type='button'
+                className='ghost icon-btn'
                 onClick={onRefreshAgents}
                 title={t('settings.rescanTitle')}
               >
@@ -136,73 +152,57 @@ export function SettingsDialog({
               </button>
             </div>
             {agents.length === 0 ? (
-              <div className="empty-card">
-                {t('settings.noAgentsDetected')}
-              </div>
+              <>
+                <div className='empty-card'>{t('settings.noAgentsDetected')}</div>
+                <div className='agent-grid' style={{ marginTop: '0.75rem' }}>
+                  {lmStudioShortcut}
+                </div>
+              </>
             ) : (
-              <div className="agent-grid">
+              <div className='agent-grid'>
                 {agents.map((a) => {
                   const active = cfg.agentId === a.id;
                   return (
                     <button
-                      type="button"
+                      type='button'
                       key={a.id}
-                      className={
-                        'agent-card' +
-                        (active ? ' active' : '') +
-                        (a.available ? '' : ' disabled')
-                      }
-                      onClick={() =>
-                        a.available && setCfg((c) => ({ ...c, agentId: a.id }))
-                      }
+                      className={'agent-card' + (active ? ' active' : '') + (a.available ? '' : ' disabled')}
+                      onClick={() => a.available && setCfg((c) => ({ ...c, agentId: a.id }))}
                       disabled={!a.available}
                       aria-pressed={active}
                     >
                       <AgentIcon id={a.id} size={40} />
-                      <div className="agent-card-body">
-                        <div className="agent-card-name">{a.name}</div>
-                        <div className="agent-card-meta">
+                      <div className='agent-card-body'>
+                        <div className='agent-card-name'>{a.name}</div>
+                        <div className='agent-card-meta'>
                           {a.available ? (
                             a.version ? (
                               <span title={a.path ?? ''}>{a.version}</span>
                             ) : (
-                              <span title={a.path ?? ''}>
-                                {t('common.installed')}
-                              </span>
+                              <span title={a.path ?? ''}>{t('common.installed')}</span>
                             )
                           ) : (
-                            <span className="muted">
-                              {t('common.notInstalled')}
-                            </span>
+                            <span className='muted'>{t('common.notInstalled')}</span>
                           )}
                         </div>
                       </div>
                       {a.available ? (
-                        <span
-                          className={'status-dot' + (active ? ' active' : '')}
-                          aria-hidden="true"
-                        />
+                        <span className={'status-dot' + (active ? ' active' : '')} aria-hidden='true' />
                       ) : null}
                     </button>
                   );
                 })}
+                {lmStudioShortcut}
               </div>
             )}
             {(() => {
-              const selected = agents.find(
-                (a) => a.id === cfg.agentId && a.available,
-              );
+              const selected = agents.find((a) => a.id === cfg.agentId && a.available);
               if (!selected) return null;
-              const hasModels =
-                Array.isArray(selected.models) && selected.models.length > 0;
-              const hasReasoning =
-                Array.isArray(selected.reasoningOptions) &&
-                selected.reasoningOptions.length > 0;
+              const hasModels = Array.isArray(selected.models) && selected.models.length > 0;
+              const hasReasoning = Array.isArray(selected.reasoningOptions) && selected.reasoningOptions.length > 0;
               if (!hasModels && !hasReasoning) return null;
               const choice = cfg.agentModels?.[selected.id] ?? {};
-              const setChoice = (
-                next: { model?: string; reasoning?: string },
-              ) => {
+              const setChoice = (next: { model?: string; reasoning?: string }) => {
                 setCfg((c) => {
                   const prev = c.agentModels?.[selected.id] ?? {};
                   return {
@@ -214,23 +214,15 @@ export function SettingsDialog({
                   };
                 });
               };
-              const modelValue =
-                choice.model ?? selected.models?.[0]?.id ?? '';
-              const reasoningValue =
-                choice.reasoning ??
-                selected.reasoningOptions?.[0]?.id ?? '';
-              const customActive =
-                hasModels && isCustomModel(modelValue, selected.models!);
-              const selectValue = customActive
-                ? CUSTOM_MODEL_SENTINEL
-                : modelValue;
+              const modelValue = choice.model ?? selected.models?.[0]?.id ?? '';
+              const reasoningValue = choice.reasoning ?? selected.reasoningOptions?.[0]?.id ?? '';
+              const customActive = hasModels && isCustomModel(modelValue, selected.models!);
+              const selectValue = customActive ? CUSTOM_MODEL_SENTINEL : modelValue;
               return (
-                <div className="agent-model-row">
+                <div className='agent-model-row'>
                   {hasModels ? (
-                    <label className="field">
-                      <span className="field-label">
-                        {t('settings.modelPicker')}
-                      </span>
+                    <label className='field'>
+                      <span className='field-label'>{t('settings.modelPicker')}</span>
                       <select
                         value={selectValue}
                         onChange={(e) => {
@@ -246,38 +238,25 @@ export function SettingsDialog({
                         }}
                       >
                         {renderModelOptions(selected.models!)}
-                        <option value={CUSTOM_MODEL_SENTINEL}>
-                          {t('settings.modelCustom')}
-                        </option>
+                        <option value={CUSTOM_MODEL_SENTINEL}>{t('settings.modelCustom')}</option>
                       </select>
                     </label>
                   ) : null}
                   {customActive ? (
-                    <label className="field">
-                      <span className="field-label">
-                        {t('settings.modelCustomLabel')}
-                      </span>
+                    <label className='field'>
+                      <span className='field-label'>{t('settings.modelCustomLabel')}</span>
                       <input
-                        type="text"
+                        type='text'
                         value={modelValue}
                         placeholder={t('settings.modelCustomPlaceholder')}
-                        onChange={(e) =>
-                          setChoice({ model: e.target.value.trim() })
-                        }
+                        onChange={(e) => setChoice({ model: e.target.value.trim() })}
                       />
                     </label>
                   ) : null}
                   {hasReasoning ? (
-                    <label className="field">
-                      <span className="field-label">
-                        {t('settings.reasoningPicker')}
-                      </span>
-                      <select
-                        value={reasoningValue}
-                        onChange={(e) =>
-                          setChoice({ reasoning: e.target.value })
-                        }
-                      >
+                    <label className='field'>
+                      <span className='field-label'>{t('settings.reasoningPicker')}</span>
+                      <select value={reasoningValue} onChange={(e) => setChoice({ reasoning: e.target.value })}>
                         {selected.reasoningOptions!.map((r) => (
                           <option key={r.id} value={r.id}>
                             {r.label}
@@ -286,105 +265,121 @@ export function SettingsDialog({
                       </select>
                     </label>
                   ) : null}
-                  <p className="hint">{t('settings.modelPickerHint')}</p>
+                  <p className='hint'>{t('settings.modelPickerHint')}</p>
                 </div>
               );
             })()}
           </section>
         ) : (
-          <section className="settings-section">
-            <div className="section-head">
+          <section className='settings-section'>
+            <div className='section-head'>
               <h3>{t('settings.apiSection')}</h3>
             </div>
-            <label className="field">
-              <span className="field-label">{t('settings.apiKey')}</span>
-              <div className="field-row">
+            <div className='seg-control' role='tablist' aria-label={t('settings.apiProviderAria')}>
+              <button
+                type='button'
+                role='tab'
+                aria-selected={cfg.apiProvider === 'anthropic'}
+                className={'seg-btn' + (cfg.apiProvider === 'anthropic' ? ' active' : '')}
+                onClick={() => setApiProvider('anthropic')}
+              >
+                <span className='seg-title'>{t('settings.providerAnthropic')}</span>
+                <span className='seg-meta'>{t('settings.providerAnthropicMeta')}</span>
+              </button>
+              <button
+                type='button'
+                role='tab'
+                aria-selected={cfg.apiProvider === 'openai-compatible'}
+                className={'seg-btn' + (cfg.apiProvider === 'openai-compatible' ? ' active' : '')}
+                onClick={() => setApiProvider('openai-compatible')}
+              >
+                <span className='seg-title'>{t('settings.providerOpenAiLocal')}</span>
+                <span className='seg-meta'>{t('settings.providerOpenAiLocalMeta')}</span>
+              </button>
+            </div>
+            <label className='field'>
+              <span className='field-label'>{t('settings.apiKey')}</span>
+              <div className='field-row'>
                 <input
                   type={showApiKey ? 'text' : 'password'}
-                  placeholder="sk-ant-..."
+                  placeholder={
+                    cfg.apiProvider === 'anthropic'
+                      ? t('settings.placeholderApiKeyAnthropic')
+                      : t('settings.placeholderApiKeyOptional')
+                  }
                   value={cfg.apiKey}
                   onChange={(e) => setCfg({ ...cfg, apiKey: e.target.value })}
-                  autoFocus
+                  autoFocus={welcome && cfg.apiProvider === 'anthropic'}
                 />
                 <button
-                  type="button"
-                  className="ghost icon-btn"
+                  type='button'
+                  className='ghost icon-btn'
                   onClick={() => setShowApiKey((v) => !v)}
-                  title={
-                    showApiKey ? t('settings.hideKey') : t('settings.showKey')
-                  }
+                  title={showApiKey ? t('settings.hideKey') : t('settings.showKey')}
                 >
                   {showApiKey ? t('settings.hide') : t('settings.show')}
                 </button>
               </div>
             </label>
-            <label className="field">
-              <span className="field-label">{t('settings.model')}</span>
+            <label className='field'>
+              <span className='field-label'>{t('settings.model')}</span>
               <input
-                type="text"
+                type='text'
                 value={cfg.model}
-                list="suggested-models"
+                list={cfg.apiProvider === 'anthropic' ? 'suggested-models' : undefined}
                 onChange={(e) => setCfg({ ...cfg, model: e.target.value })}
+                autoFocus={welcome && cfg.apiProvider === 'openai-compatible'}
               />
-              <datalist id="suggested-models">
-                {SUGGESTED_MODELS.map((m) => (
-                  <option value={m} key={m} />
-                ))}
-              </datalist>
+              {cfg.apiProvider === 'anthropic' ? (
+                <datalist id='suggested-models'>
+                  {SUGGESTED_MODELS.map((m) => (
+                    <option value={m} key={m} />
+                  ))}
+                </datalist>
+              ) : null}
             </label>
-            <label className="field">
-              <span className="field-label">{t('settings.baseUrl')}</span>
-              <input
-                type="text"
-                value={cfg.baseUrl}
-                onChange={(e) => setCfg({ ...cfg, baseUrl: e.target.value })}
-              />
+            <label className='field'>
+              <span className='field-label'>{t('settings.baseUrl')}</span>
+              <input type='text' value={cfg.baseUrl} onChange={(e) => setCfg({ ...cfg, baseUrl: e.target.value })} />
             </label>
-            <p className="hint">{t('settings.apiHint')}</p>
+            <p className='hint'>
+              {cfg.apiProvider === 'anthropic' ? t('settings.apiHint') : t('settings.apiHintOpenAiLocal')}
+            </p>
           </section>
         )}
 
-        <section className="settings-section">
-          <div className="section-head">
+        <section className='settings-section'>
+          <div className='section-head'>
             <div>
               <h3>{t('settings.language')}</h3>
-              <p className="hint">{t('settings.languageHint')}</p>
+              <p className='hint'>{t('settings.languageHint')}</p>
             </div>
           </div>
-          <div
-            className="seg-control"
-            role="tablist"
-            aria-label={t('settings.language')}
-          >
+          <div className='seg-control' role='tablist' aria-label={t('settings.language')}>
             {LOCALES.map((code) => {
               const active = locale === code;
               return (
                 <button
                   key={code}
-                  type="button"
-                  role="tab"
+                  type='button'
+                  role='tab'
                   aria-selected={active}
                   className={'seg-btn' + (active ? ' active' : '')}
                   onClick={() => setLocale(code as Locale)}
                 >
-                  <span className="seg-title">{LOCALE_LABEL[code]}</span>
-                  <span className="seg-meta">{code}</span>
+                  <span className='seg-title'>{LOCALE_LABEL[code]}</span>
+                  <span className='seg-meta'>{code}</span>
                 </button>
               );
             })}
           </div>
         </section>
 
-        <footer className="modal-foot">
-          <button type="button" className="ghost" onClick={onClose}>
+        <footer className='modal-foot'>
+          <button type='button' className='ghost' onClick={onClose}>
             {welcome ? t('settings.skipForNow') : t('common.cancel')}
           </button>
-          <button
-            type="button"
-            className="primary"
-            disabled={!canSave}
-            onClick={() => onSave(cfg)}
-          >
+          <button type='button' className='primary' disabled={!canSave} onClick={() => onSave(cfg)}>
             {welcome ? t('settings.getStarted') : t('common.save')}
           </button>
         </footer>

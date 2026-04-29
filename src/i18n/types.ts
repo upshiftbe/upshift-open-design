@@ -5,7 +5,7 @@ export type Locale = 'en' | 'zh-CN';
 export const LOCALES: Locale[] = ['en', 'zh-CN'];
 
 export const LOCALE_LABEL: Record<Locale, string> = {
-  'en': 'English',
+  en: 'English',
   'zh-CN': '简体中文',
 };
 
@@ -85,6 +85,17 @@ export interface Dict {
   'settings.model': string;
   'settings.baseUrl': string;
   'settings.apiHint': string;
+  'settings.apiProviderAria': string;
+  'settings.providerAnthropic': string;
+  'settings.providerAnthropicMeta': string;
+  'settings.providerOpenAiLocal': string;
+  'settings.providerOpenAiLocalMeta': string;
+  'settings.apiHintOpenAiLocal': string;
+  'settings.placeholderApiKeyAnthropic': string;
+  'settings.placeholderApiKeyOptional': string;
+  'settings.localOpenAiApi': string;
+  'settings.lmStudioCardTitle': string;
+  'settings.lmStudioCardMeta': string;
   'settings.skipForNow': string;
   'settings.getStarted': string;
   'settings.envConfigure': string;
@@ -278,6 +289,7 @@ export interface Dict {
   'chat.importSkills': string;
   'chat.importProject': string;
   'chat.send': string;
+  'chat.localLlmNeedsDaemon': string;
   'chat.stop': string;
   'chat.removeAria': string;
   'chat.example1Title': string;

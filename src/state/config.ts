@@ -4,6 +4,7 @@ const STORAGE_KEY = 'open-design:config';
 
 export const DEFAULT_CONFIG: AppConfig = {
   mode: 'daemon',
+  apiProvider: 'anthropic',
   apiKey: '',
   baseUrl: 'https://api.anthropic.com',
   model: 'claude-sonnet-4-5',
@@ -19,7 +20,11 @@ export function loadConfig(): AppConfig {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_CONFIG };
     const parsed = JSON.parse(raw) as Partial<AppConfig>;
-    return { ...DEFAULT_CONFIG, ...parsed };
+    const merged = { ...DEFAULT_CONFIG, ...parsed };
+    if (merged.apiProvider !== 'anthropic' && merged.apiProvider !== 'openai-compatible') {
+      merged.apiProvider = 'anthropic';
+    }
+    return merged;
   } catch {
     return { ...DEFAULT_CONFIG };
   }

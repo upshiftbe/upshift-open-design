@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createArtifactParser } from '../artifacts/parser';
 import { useT } from '../i18n';
+import { composeSystemPrompt } from '../prompts/system';
 import { streamMessage } from '../providers/anthropic';
 import { streamViaDaemon } from '../providers/daemon';
-import {
-  fetchDesignSystem,
-  fetchProjectFiles,
-  fetchSkill,
-  writeProjectTextFile,
-} from '../providers/registry';
-import { composeSystemPrompt } from '../prompts/system';
+import { streamOpenAiCompatible } from '../providers/openai-compatible';
+import { fetchDesignSystem, fetchProjectFiles, fetchSkill, writeProjectTextFile } from '../providers/registry';
 import { navigate } from '../router';
 import {
   createConversation,
@@ -53,10 +49,7 @@ interface Props {
   daemonLive: boolean;
   onModeChange: (mode: AppConfig['mode']) => void;
   onAgentChange: (id: string) => void;
-  onAgentModelChange: (
-    id: string,
-    choice: { model?: string; reasoning?: string },
-  ) => void;
+  onAgentModelChange: (id: string, choice: { model?: string; reasoning?: string }) => void;
   onRefreshAgents: () => void;
   onOpenSettings: () => void;
   onBack: () => void;
@@ -87,9 +80,7 @@ export function ProjectView({
 }: Props) {
   const t = useT();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(
-    null,
-  );
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,10 +204,7 @@ export function ProjectView({
   // Set of project file names that the chat surface uses to decide whether
   // a tool card's path is openable as a tab. Recomputed on every file-list
   // change; tool cards just read from the set.
-  const projectFileNames = useMemo(
-    () => new Set(projectFiles.map((f) => f.name)),
-    [projectFiles],
-  );
+  const projectFileNames = useMemo(() => new Set(projectFiles.map((f) => f.name)), [projectFiles]);
 
   // Keep the @-picker's source of truth fresh: every refreshSignal bump
   // (artifact saved, sketch saved, image uploaded) refetches; on first
@@ -240,15 +228,10 @@ export function ProjectView({
   // history stack doesn't fill with every tab click.
   const lastSyncedFileRef = useRef<string | null>(null);
   useEffect(() => {
-    const target = openTabsState.active && projectFileNames.has(openTabsState.active)
-      ? openTabsState.active
-      : null;
+    const target = openTabsState.active && projectFileNames.has(openTabsState.active) ? openTabsState.active : null;
     if (target === lastSyncedFileRef.current) return;
     lastSyncedFileRef.current = target;
-    navigate(
-      { kind: 'project', projectId: project.id, fileName: target },
-      { replace: true },
-    );
+    navigate({ kind: 'project', projectId: project.id, fileName: target }, { replace: true });
   }, [openTabsState.active, projectFileNames, project.id]);
 
   const handleEnsureProject = useCallback(async (): Promise<string | null> => {
@@ -314,13 +297,7 @@ export function ProjectView({
       metadata: project.metadata,
       template,
     });
-  }, [
-    project.skillId,
-    project.designSystemId,
-    project.metadata,
-    skills,
-    designSystems,
-  ]);
+  }, [project.skillId, project.designSystemId, project.metadata, skills, designSystems]);
 
   const persistMessage = useCallback(
     (m: ChatMessage) => {
@@ -362,11 +339,7 @@ export function ProjectView({
       if (messages.length === 0) {
         const title = prompt.slice(0, 60).trim();
         if (title) {
-          setConversations((curr) =>
-            curr.map((c) =>
-              c.id === activeConversationId ? { ...c, title } : c,
-            ),
-          );
+          setConversations((curr) => curr.map((c) => (c.id === activeConversationId ? { ...c, title } : c)));
           void patchConversation(project.id, activeConversationId, { title });
         }
       }
@@ -380,9 +353,7 @@ export function ProjectView({
       let liveHtml = '';
 
       const updateAssistant = (updater: (prev: ChatMessage) => ChatMessage) => {
-        setMessages((curr) =>
-          curr.map((m) => (m.id === assistantId ? updater(m) : m)),
-        );
+        setMessages((curr) => curr.map((m) => (m.id === assistantId ? updater(m) : m)));
       };
 
       const pushEvent = (ev: AgentEvent) => {
@@ -422,9 +393,7 @@ export function ProjectView({
           } else if (ev.type === 'artifact:chunk') {
             liveHtml += ev.delta;
             setArtifact((prev) =>
-              prev
-                ? { ...prev, html: liveHtml }
-                : { identifier: ev.identifier, title: '', html: liveHtml },
+              prev ? { ...prev, html: liveHtml } : { identifier: ev.identifier, title: '', html: liveHtml },
             );
           } else if (ev.type === 'artifact:end') {
             setArtifact((prev) => (prev ? { ...prev, html: ev.fullContent } : null));
@@ -463,11 +432,7 @@ export function ProjectView({
             const produced = nextFiles.filter((f) => !beforeFileNames.has(f.name));
             setMessages((curr) => {
               const updated = curr.map((m) =>
-                m.id === assistantId
-                  ? produced.length > 0
-                    ? { ...m, producedFiles: produced }
-                    : m
-                  : m,
+                m.id === assistantId ? (produced.length > 0 ? { ...m, producedFiles: produced } : m) : m,
               );
               const finalized = updated.find((m) => m.id === assistantId);
               if (finalized) persistMessage(finalized);
@@ -507,6 +472,20 @@ export function ProjectView({
           model: choice?.model ?? null,
           reasoning: choice?.reasoning ?? null,
         });
+      } else if (config.apiProvider === 'openai-compatible') {
+        if (!daemonLive) {
+          handlers.onError(new Error(t('chat.localLlmNeedsDaemon')));
+          return;
+        }
+        pushEvent({ kind: 'status', label: 'requesting', detail: config.model });
+        void streamOpenAiCompatible(config, systemPrompt, nextHistory, controller.signal, {
+          onDelta: (delta) => {
+            handlers.onDelta(delta);
+            handlers.onAgentEvent({ kind: 'text', text: delta });
+          },
+          onDone: handlers.onDone,
+          onError: handlers.onError,
+        });
       } else {
         pushEvent({ kind: 'status', label: 'requesting', detail: config.model });
         void streamMessage(config, systemPrompt, nextHistory, controller.signal, {
@@ -530,16 +509,19 @@ export function ProjectView({
       refreshProjectFiles,
       persistMessage,
       onProjectsRefresh,
+      daemonLive,
+      t,
     ],
   );
 
   const persistArtifact = useCallback(
     async (art: Artifact) => {
-      const baseName = (art.identifier || art.title || 'artifact')
-        .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 60) || 'artifact';
+      const baseName =
+        (art.identifier || art.title || 'artifact')
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 60) || 'artifact';
       // Pick a name that doesn't collide with an existing project file.
       // The first run uses `<base>.html`; subsequent runs append `-2`, `-3`…
       // so prior artifacts aren't silently overwritten.
@@ -591,9 +573,7 @@ export function ProjectView({
     setStreaming(false);
     setMessages((curr) => {
       const next = curr.map((m) =>
-        m.role === 'assistant' && m.endedAt === undefined
-          ? { ...m, endedAt: Date.now() }
-          : m,
+        m.role === 'assistant' && m.endedAt === undefined ? { ...m, endedAt: Date.now() } : m,
       );
       const finalized = next.find(
         (m) =>
@@ -644,9 +624,7 @@ export function ProjectView({
   const handleRenameConversation = useCallback(
     async (id: string, title: string) => {
       const trimmed = title.trim() || null;
-      setConversations((curr) =>
-        curr.map((c) => (c.id === id ? { ...c, title: trimmed } : c)),
-      );
+      setConversations((curr) => curr.map((c) => (c.id === id ? { ...c, title: trimmed } : c)));
       await patchConversation(project.id, id, { title: trimmed });
     },
     [project.id],
@@ -682,9 +660,7 @@ export function ProjectView({
   // ChatPane has remounted with the seed still available — we clear both
   // the local snapshot and the persisted pendingPrompt so future
   // conversation switches don't keep re-seeding the composer.
-  const [initialDraft, setInitialDraft] = useState<string | undefined>(
-    project.pendingPrompt,
-  );
+  const [initialDraft, setInitialDraft] = useState<string | undefined>(project.pendingPrompt);
   useEffect(() => {
     if (initialDraft && activeConversationId) {
       setInitialDraft(undefined);
@@ -695,25 +671,25 @@ export function ProjectView({
   }, [project.pendingPrompt, onClearPendingPrompt]);
 
   return (
-    <div className="app">
-      <div className="topbar">
-        <div className="topbar-left">
+    <div className='app'>
+      <div className='topbar'>
+        <div className='topbar-left'>
           <button
-            className="ghost back-btn"
+            className='ghost back-btn'
             onClick={onBack}
             title={t('project.backToProjects')}
             aria-label={t('project.backToProjects')}
           >
-            <Icon name="arrow-left" size={14} />
+            <Icon name='arrow-left' size={14} />
           </button>
-          <span className="brand-mark" aria-hidden>
-            <img src="/logo.svg" alt="" className="brand-mark-img" draggable={false} />
+          <span className='brand-mark' aria-hidden>
+            <img src='/logo.svg' alt='' className='brand-mark-img' draggable={false} />
           </span>
-          <div className="topbar-title">
+          <div className='topbar-title'>
             <span
-              className="title editable"
+              className='title editable'
               tabIndex={0}
-              role="textbox"
+              role='textbox'
               suppressContentEditableWarning
               contentEditable
               onBlur={(e) => handleProjectRename(e.currentTarget.textContent ?? '')}
@@ -726,10 +702,10 @@ export function ProjectView({
             >
               {project.name}
             </span>
-            <span className="meta">{projectMeta}</span>
+            <span className='meta'>{projectMeta}</span>
           </div>
         </div>
-        <div className="topbar-right">
+        <div className='topbar-right'>
           <AvatarMenu
             config={config}
             agents={agents}
@@ -743,7 +719,7 @@ export function ProjectView({
           />
         </div>
       </div>
-      <div className="split">
+      <div className='split'>
         <ChatPane
           // The conversation id is part of the key so switching conversations
           // resets internal scroll/draft state inside ChatPane and ChatComposer.

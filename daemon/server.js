@@ -2,38 +2,18 @@ import express from 'express';
 import multer from 'multer';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
-import {
-  detectAgents,
-  getAgentDef,
-  isKnownModel,
-  resolveAgentBin,
-  sanitizeCustomModel,
-} from './agents.js';
-import { listSkills } from './skills.js';
-import { listDesignSystems, readDesignSystem } from './design-systems.js';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
+import { detectAgents, getAgentDef, isKnownModel, resolveAgentBin, sanitizeCustomModel } from './agents.js';
+import { importClaudeDesignZip } from './claude-design-import.js';
 import { createClaudeStreamHandler } from './claude-stream.js';
 import { createCopilotStreamHandler } from './copilot-stream.js';
-import { renderDesignSystemPreview } from './design-system-preview.js';
-import { renderDesignSystemShowcase } from './design-system-showcase.js';
-import { importClaudeDesignZip } from './claude-design-import.js';
-import { lintArtifact, renderFindingsForAgent } from './lint-artifact.js';
 import {
-  deleteProjectFile,
-  ensureProject,
-  listFiles,
-  projectDir,
-  readProjectFile,
-  removeProjectDir,
-  sanitizeName,
-  writeProjectFile,
-} from './projects.js';
-import {
-  deleteConversation,
   deleteProject as dbDeleteProject,
+  deleteConversation,
   deleteTemplate,
   getConversation,
   getProject,
@@ -52,6 +32,21 @@ import {
   updateProject,
   upsertMessage,
 } from './db.js';
+import { renderDesignSystemPreview } from './design-system-preview.js';
+import { renderDesignSystemShowcase } from './design-system-showcase.js';
+import { listDesignSystems, readDesignSystem } from './design-systems.js';
+import { lintArtifact, renderFindingsForAgent } from './lint-artifact.js';
+import {
+  deleteProjectFile,
+  ensureProject,
+  listFiles,
+  projectDir,
+  readProjectFile,
+  removeProjectDir,
+  sanitizeName,
+  writeProjectFile,
+} from './projects.js';
+import { listSkills } from './skills.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -156,6 +151,55 @@ function sendMulterError(res, err) {
   return res.status(500).json({ code: 'UPLOAD_ERROR', error: 'upload failed' });
 }
 
+/** Restrict OpenAI proxy targets to loopback / RFC1918 to avoid SSRF. */
+function isAllowedOpenAiProxyHost(hostname) {
+  const h = String(hostname || '')
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
+  if (h === 'localhost' || h === '::1') return true;
+  if (h === '127.0.0.1') return true;
+  const parts = h.split('.');
+  if (parts.length === 4 && parts.every((x) => /^\d{1,3}$/.test(x))) {
+    const a = Number(parts[0]);
+    const b = Number(parts[1]);
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+  }
+  return false;
+}
+
+/**
+ * Turn user base URL into a full `.../chat/completions` endpoint.
+ * Accepts `http://host:port`, `http://host:port/v1`, or a URL that already
+ * ends with `chat/completions`.
+ */
+function normalizeOpenAiChatCompletionsUrl(baseUrlRaw) {
+  const raw = String(baseUrlRaw || '').trim();
+  if (!raw) return null;
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (!isAllowedOpenAiProxyHost(u.hostname)) return null;
+
+  let p = u.pathname.replace(/\/+$/, '') || '';
+  if (!p || p === '/') {
+    u.pathname = '/v1/chat/completions';
+  } else if (p === '/v1' || p.endsWith('/v1')) {
+    u.pathname = `${p}/chat/completions`;
+  } else if (p.includes('chat/completions')) {
+    u.pathname = p.startsWith('/') ? p : `/${p}`;
+  } else {
+    return null;
+  }
+  return u.toString();
+}
+
 export async function startServer({ port = 7456 } = {}) {
   const app = express();
   app.use(express.json({ limit: '4mb' }));
@@ -186,8 +230,7 @@ export async function startServer({ port = 7456 } = {}) {
 
   app.post('/api/projects', async (req, res) => {
     try {
-      const { id, name, skillId, designSystemId, pendingPrompt, metadata } =
-        req.body || {};
+      const { id, name, skillId, designSystemId, pendingPrompt, metadata } = req.body || {};
       if (typeof id !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(id)) {
         return res.status(400).json({ error: 'invalid project id' });
       }
@@ -232,12 +275,7 @@ export async function startServer({ port = 7456 } = {}) {
               continue;
             }
             try {
-              await writeProjectFile(
-                PROJECTS_DIR,
-                id,
-                f.name,
-                Buffer.from(f.content, 'utf8'),
-              );
+              await writeProjectFile(PROJECTS_DIR, id, f.name, Buffer.from(f.content, 'utf8'));
             } catch {
               // Skip individual file failures — the template snapshot is
               // best-effort; the agent still has the embedded copy.
@@ -373,34 +411,28 @@ export async function startServer({ port = 7456 } = {}) {
 
   // ---- Messages -------------------------------------------------------------
 
-  app.get(
-    '/api/projects/:id/conversations/:cid/messages',
-    (req, res) => {
-      const conv = getConversation(db, req.params.cid);
-      if (!conv || conv.projectId !== req.params.id) {
-        return res.status(404).json({ error: 'conversation not found' });
-      }
-      res.json({ messages: listMessages(db, req.params.cid) });
-    },
-  );
+  app.get('/api/projects/:id/conversations/:cid/messages', (req, res) => {
+    const conv = getConversation(db, req.params.cid);
+    if (!conv || conv.projectId !== req.params.id) {
+      return res.status(404).json({ error: 'conversation not found' });
+    }
+    res.json({ messages: listMessages(db, req.params.cid) });
+  });
 
-  app.put(
-    '/api/projects/:id/conversations/:cid/messages/:mid',
-    (req, res) => {
-      const conv = getConversation(db, req.params.cid);
-      if (!conv || conv.projectId !== req.params.id) {
-        return res.status(404).json({ error: 'conversation not found' });
-      }
-      const m = req.body || {};
-      if (m.id && m.id !== req.params.mid) {
-        return res.status(400).json({ error: 'id mismatch' });
-      }
-      const saved = upsertMessage(db, req.params.cid, { ...m, id: req.params.mid });
-      // Bump the parent project's updatedAt so the project list re-orders.
-      updateProject(db, req.params.id, {});
-      res.json({ message: saved });
-    },
-  );
+  app.put('/api/projects/:id/conversations/:cid/messages/:mid', (req, res) => {
+    const conv = getConversation(db, req.params.cid);
+    if (!conv || conv.projectId !== req.params.id) {
+      return res.status(404).json({ error: 'conversation not found' });
+    }
+    const m = req.body || {};
+    if (m.id && m.id !== req.params.mid) {
+      return res.status(400).json({ error: 'id mismatch' });
+    }
+    const saved = upsertMessage(db, req.params.cid, { ...m, id: req.params.mid });
+    // Bump the parent project's updatedAt so the project list re-orders.
+    updateProject(db, req.params.id, {});
+    res.json({ message: saved });
+  });
 
   // ---- Tabs -----------------------------------------------------------------
 
@@ -419,12 +451,7 @@ export async function startServer({ port = 7456 } = {}) {
     if (!Array.isArray(tabs) || !tabs.every((t) => typeof t === 'string')) {
       return res.status(400).json({ error: 'tabs must be string[]' });
     }
-    const result = setTabs(
-      db,
-      req.params.id,
-      tabs,
-      typeof active === 'string' ? active : null,
-    );
+    const result = setTabs(db, req.params.id, tabs, typeof active === 'string' ? active : null);
     res.json(result);
   });
 
@@ -758,12 +785,7 @@ export async function startServer({ port = 7456 } = {}) {
         if (req.file) {
           const buf = await fs.promises.readFile(req.file.path);
           const desiredName = sanitizeName(req.body?.name || req.file.originalname);
-          const meta = await writeProjectFile(
-            PROJECTS_DIR,
-            req.params.id,
-            desiredName,
-            buf,
-          );
+          const meta = await writeProjectFile(PROJECTS_DIR, req.params.id, desiredName, buf);
           fs.promises.unlink(req.file.path).catch(() => {});
           return res.json({ file: meta });
         }
@@ -771,10 +793,7 @@ export async function startServer({ port = 7456 } = {}) {
         if (typeof name !== 'string' || typeof content !== 'string') {
           return res.status(400).json({ error: 'name and content required' });
         }
-        const buf =
-          encoding === 'base64'
-            ? Buffer.from(content, 'base64')
-            : Buffer.from(content, 'utf8');
+        const buf = encoding === 'base64' ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf8');
         const meta = await writeProjectFile(PROJECTS_DIR, req.params.id, name, buf);
         res.json({ file: meta });
       } catch (err) {
@@ -797,33 +816,97 @@ export async function startServer({ port = 7456 } = {}) {
   // Files land flat in the project folder; the response carries the same
   // metadata as listFiles so the client can stage them as ChatAttachments
   // without a separate refetch.
-  app.post(
-    '/api/projects/:id/upload',
-    handleProjectUpload,
-    async (req, res) => {
-      try {
-        const incoming = Array.isArray(req.files) ? req.files : [];
-        const out = [];
-        for (const f of incoming) {
-          try {
-            const stat = await fs.promises.stat(f.path);
-            out.push({
-              name: f.filename,
-              path: f.filename,
-              size: stat.size,
-              mtime: stat.mtimeMs,
-              originalName: f.originalname,
-            });
-          } catch {
-            // skip files that vanished mid-flight
-          }
+  app.post('/api/projects/:id/upload', handleProjectUpload, async (req, res) => {
+    try {
+      const incoming = Array.isArray(req.files) ? req.files : [];
+      const out = [];
+      for (const f of incoming) {
+        try {
+          const stat = await fs.promises.stat(f.path);
+          out.push({
+            name: f.filename,
+            path: f.filename,
+            size: stat.size,
+            mtime: stat.mtimeMs,
+            originalName: f.originalname,
+          });
+        } catch {
+          // skip files that vanished mid-flight
         }
-        res.json({ files: out });
-      } catch (err) {
-        res.status(500).json({ error: 'upload failed' });
       }
-    },
-  );
+      res.json({ files: out });
+    } catch (err) {
+      res.status(500).json({ error: 'upload failed' });
+    }
+  });
+
+  app.post('/api/openai-chat', async (req, res) => {
+    const { baseUrl: baseUrlRaw, apiKey, model, messages } = req.body || {};
+    const target = normalizeOpenAiChatCompletionsUrl(typeof baseUrlRaw === 'string' ? baseUrlRaw : '');
+    if (!target) {
+      return res.status(400).json({
+        error:
+          'Invalid baseUrl. Use http(s) to localhost or a private LAN host; path /, /v1, or full .../chat/completions.',
+      });
+    }
+    if (typeof model !== 'string' || !model.trim()) {
+      return res.status(400).json({ error: 'model required' });
+    }
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'messages required' });
+    }
+    for (const m of messages) {
+      if (!m || typeof m !== 'object') {
+        return res.status(400).json({ error: 'invalid messages' });
+      }
+      if (typeof m.role !== 'string' || typeof m.content !== 'string') {
+        return res.status(400).json({ error: 'each message must have string role and content' });
+      }
+    }
+
+    const key = typeof apiKey === 'string' ? apiKey.trim() : '';
+    const headers = { 'Content-Type': 'application/json' };
+    if (key) {
+      headers.Authorization = `Bearer ${key}`;
+    }
+
+    let upstream;
+    try {
+      upstream = await fetch(target, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: model.trim(),
+          messages,
+          stream: true,
+        }),
+      });
+    } catch (err) {
+      return res.status(502).json({ error: `upstream fetch failed: ${err.message}` });
+    }
+
+    if (!upstream.ok || !upstream.body) {
+      const errText = await upstream.text().catch(() => '');
+      return res.status(upstream.status >= 400 ? upstream.status : 502).json({
+        error: errText.slice(0, 2000) || `upstream ${upstream.status}`,
+      });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const nodeIn = Readable.fromWeb(upstream.body);
+    nodeIn.on('error', () => {
+      if (!res.writableEnded) res.end();
+    });
+    res.on('close', () => {
+      nodeIn.destroy();
+    });
+    nodeIn.pipe(res);
+  });
 
   app.post('/api/chat', async (req, res) => {
     const {
@@ -871,18 +954,15 @@ export async function startServer({ port = 7456 } = {}) {
     // to Read it.
     const safeAttachments = cwd
       ? (Array.isArray(attachments) ? attachments : [])
-        .filter((p) => typeof p === 'string' && p.length > 0)
-        .filter((p) => {
-          try {
-            const abs = path.resolve(cwd, p);
-            return (
-              (abs === cwd || abs.startsWith(cwd + path.sep)) &&
-              fs.existsSync(abs)
-            );
-          } catch {
-            return false;
-          }
-        })
+          .filter((p) => typeof p === 'string' && p.length > 0)
+          .filter((p) => {
+            try {
+              const abs = path.resolve(cwd, p);
+              return (abs === cwd || abs.startsWith(cwd + path.sep)) && fs.existsSync(abs);
+            } catch {
+              return false;
+            }
+          })
       : [];
 
     // Local code agents don't accept a separate "system" channel the way the
@@ -921,23 +1001,17 @@ export async function startServer({ port = 7456 } = {}) {
     // Claude Code blocks those reads (issue #6: "no permission to read
     // skills template"). We surface both roots so any agent that honours
     // `--add-dir` can resolve those side files.
-    const extraAllowedDirs = [SKILLS_DIR, DESIGN_SYSTEMS_DIR].filter(
-      (d) => fs.existsSync(d),
-    );
+    const extraAllowedDirs = [SKILLS_DIR, DESIGN_SYSTEMS_DIR].filter((d) => fs.existsSync(d));
     // Per-agent model + reasoning the user picked in the model menu.
     // Trust the value when it matches the most recent /api/agents listing
     // (live or fallback). Otherwise allow it through if it passes a
     // permissive sanitizer — that's the path for user-typed custom model
     // ids the CLI's listing didn't surface yet.
     const safeModel =
-      typeof model === 'string'
-        ? isKnownModel(def, model)
-          ? model
-          : sanitizeCustomModel(model)
-        : null;
+      typeof model === 'string' ? (isKnownModel(def, model) ? model : sanitizeCustomModel(model)) : null;
     const safeReasoning =
       typeof reasoning === 'string' && Array.isArray(def.reasoningOptions)
-        ? def.reasoningOptions.find((r) => r.id === reasoning)?.id ?? null
+        ? (def.reasoningOptions.find((r) => r.id === reasoning)?.id ?? null)
         : null;
     const agentOptions = { model: safeModel, reasoning: safeReasoning };
     const args = def.buildArgs(composed, safeImages, extraAllowedDirs, agentOptions);
@@ -995,8 +1069,7 @@ export async function startServer({ port = 7456 } = {}) {
     // cmd.exe) wouldn't actually help those, so we don't pretend it would.
     // In practice npm-installed CLIs ship as `.cmd` shims, which is the
     // case this branch covers.
-    const useShell =
-      process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedBin);
+    const useShell = process.platform === 'win32' && /\.(cmd|bat)$/i.test(resolvedBin);
 
     send('start', {
       agentId,
@@ -1107,19 +1180,17 @@ function assembleExample(tplHtml, slidesHtml, skillName) {
 }
 
 function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function sanitizeSlug(s) {
-  return String(s)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40) || 'artifact';
+  return (
+    String(s)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'artifact'
+  );
 }
 
 function randomId() {
