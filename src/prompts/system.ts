@@ -3,6 +3,9 @@
  * prompt (see ./official-system.ts) — a full identity, workflow, and
  * content-philosophy charter. Stacked on top:
  *
+ *   0. Optional: when `textOnlyChatSurface` is set (OpenAI-compatible local
+ *      LLM), a short adapter (./chat-completions-surface.ts) is prepended so
+ *      the model does not echo fake tool / TodoWrite transcripts.
  *   1. The discovery + planning + huashu-philosophy layer (./discovery.ts)
  *      — interactive question-form syntax, direction-picker fork,
  *      brand-spec extraction, TodoWrite reinforcement, 5-dim critique,
@@ -27,16 +30,21 @@
  *      skeleton — the skill's framework wins to avoid double-injection.
  *
  * The composed string is what the daemon sees as `systemPrompt` and what
- * the Anthropic path sends as `system`.
+ * the Anthropic path sends as `system`. For OpenAI-compatible local LLM
+ * (`textOnlyChatSurface`), a prefix is prepended so models do not mimic
+ * tool transcripts; see ./chat-completions-surface.ts.
  */
 import type { ProjectMetadata, ProjectTemplate } from '../types';
-import { OFFICIAL_DESIGNER_PROMPT } from './official-system';
-import { DISCOVERY_AND_PHILOSOPHY } from './discovery';
+import { CHAT_COMPLETIONS_TEXT_ONLY_PREFIX } from './chat-completions-surface';
 import { DECK_FRAMEWORK_DIRECTIVE } from './deck-framework';
+import { DISCOVERY_AND_PHILOSOPHY } from './discovery';
+import { OFFICIAL_DESIGNER_PROMPT } from './official-system';
 
 export const BASE_SYSTEM_PROMPT = OFFICIAL_DESIGNER_PROMPT;
 
 export interface ComposeInput {
+  /** When true, prepend rules for Chat Completions without tools (LM Studio, etc.). */
+  textOnlyChatSurface?: boolean | undefined;
   skillBody?: string | undefined;
   skillName?: string | undefined;
   skillMode?: 'prototype' | 'deck' | 'template' | 'design-system' | undefined;
@@ -54,6 +62,7 @@ export interface ComposeInput {
 }
 
 export function composeSystemPrompt({
+  textOnlyChatSurface,
   skillBody,
   skillName,
   skillMode,
@@ -62,15 +71,18 @@ export function composeSystemPrompt({
   metadata,
   template,
 }: ComposeInput): string {
-  // Discovery + philosophy goes FIRST so its hard rules ("emit a form on
-  // turn 1", "branch on brand on turn 2", "TodoWrite on turn 3", run
-  // checklist + critique before <artifact>) win precedence over softer
-  // wording later in the official base prompt.
-  const parts: string[] = [
+  // When using OpenAI-compatible chat (no tools), prepend a hard adapter so
+  // the model does not echo fake TodoWrite / <tool_code> transcripts. Then
+  // discovery + philosophy so form/artifact rules still apply.
+  const parts: string[] = [];
+  if (textOnlyChatSurface) {
+    parts.push(CHAT_COMPLETIONS_TEXT_ONLY_PREFIX, '\n\n---\n\n');
+  }
+  parts.push(
     DISCOVERY_AND_PHILOSOPHY,
     '\n\n---\n\n# Identity and workflow charter (background)\n\n',
     BASE_SYSTEM_PROMPT,
-  ];
+  );
 
   if (designSystemBody && designSystemBody.trim().length > 0) {
     parts.push(
@@ -105,8 +117,7 @@ export function composeSystemPrompt({
   // `derivePreflight` above, so we only fire the generic skeleton when no
   // skill seed is on offer.
   const isDeckProject = skillMode === 'deck' || metadata?.kind === 'deck';
-  const hasSkillSeed =
-    !!skillBody && /assets\/template\.html/.test(skillBody);
+  const hasSkillSeed = !!skillBody && /assets\/template\.html/.test(skillBody);
   if (isDeckProject && !hasSkillSeed) {
     parts.push(`\n\n---\n\n${DECK_FRAMEWORK_DIRECTIVE}`);
   }
@@ -114,10 +125,7 @@ export function composeSystemPrompt({
   return parts.join('');
 }
 
-function renderMetadataBlock(
-  metadata: ProjectMetadata | undefined,
-  template: ProjectTemplate | undefined,
-): string {
+function renderMetadataBlock(metadata: ProjectMetadata | undefined, template: ProjectTemplate | undefined): string {
   if (!metadata) return '';
   const lines: string[] = [];
   lines.push('\n\n## Project metadata');
@@ -128,9 +136,7 @@ function renderMetadataBlock(
   lines.push(`- **kind**: ${metadata.kind}`);
 
   if (metadata.kind === 'prototype') {
-    lines.push(
-      `- **fidelity**: ${metadata.fidelity ?? '(unknown — ask: wireframe vs high-fidelity)'}`,
-    );
+    lines.push(`- **fidelity**: ${metadata.fidelity ?? '(unknown — ask: wireframe vs high-fidelity)'}`);
   }
   if (metadata.kind === 'deck') {
     lines.push(
@@ -158,7 +164,7 @@ function renderMetadataBlock(
       `### Template reference — "${template.name}"${template.description ? ` (${template.description})` : ''}`,
     );
     lines.push(
-      'These HTML snapshots are what the user wants to start FROM. Read them as a stylistic + structural reference. You may copy structure, palette, typography, and component patterns; you may adapt them to the new brief; do NOT ship them verbatim. The agent should still produce its own artifact, just one that visibly inherits this template\'s design language.',
+      "These HTML snapshots are what the user wants to start FROM. Read them as a stylistic + structural reference. You may copy structure, palette, typography, and component patterns; you may adapt them to the new brief; do NOT ship them verbatim. The agent should still produce its own artifact, just one that visibly inherits this template's design language.",
     );
     for (const f of template.files) {
       // Cap each file at ~12k chars so a giant template doesn't blow out

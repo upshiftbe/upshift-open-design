@@ -289,6 +289,7 @@ export function ProjectView({
       }
     }
     return composeSystemPrompt({
+      textOnlyChatSurface: config.mode === 'api' && config.apiProvider === 'openai-compatible',
       skillBody,
       skillName,
       skillMode,
@@ -297,7 +298,15 @@ export function ProjectView({
       metadata: project.metadata,
       template,
     });
-  }, [project.skillId, project.designSystemId, project.metadata, skills, designSystems]);
+  }, [
+    project.skillId,
+    project.designSystemId,
+    project.metadata,
+    skills,
+    designSystems,
+    config.mode,
+    config.apiProvider,
+  ]);
 
   const persistMessage = useCallback(
     (m: ChatMessage) => {

@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { ToolCard } from './ToolCard';
-import { renderMarkdown } from '../runtime/markdown';
-import { projectFileUrl } from '../providers/registry';
 import { splitOnQuestionForms, type QuestionForm } from '../artifacts/question-form';
-import { QuestionFormView, parseSubmittedAnswers } from './QuestionForm';
-import { Icon } from './Icon';
 import { useT } from '../i18n';
 import type { Dict } from '../i18n/types';
+import { projectFileUrl } from '../providers/registry';
+import { renderMarkdown } from '../runtime/markdown';
 import type { AgentEvent, ChatMessage, ProjectFile } from '../types';
+import { Icon } from './Icon';
+import { QuestionFormView, parseSubmittedAnswers } from './QuestionForm';
+import { ToolCard } from './ToolCard';
 
 interface Props {
   message: ChatMessage;
@@ -50,18 +50,16 @@ export function AssistantMessage({
   const t = useT();
   const events = message.events ?? [];
   const blocks = buildBlocks(events);
-  const usage = events.find((e) => e.kind === 'usage') as
-    | Extract<AgentEvent, { kind: 'usage' }>
-    | undefined;
+  const usage = events.find((e) => e.kind === 'usage') as Extract<AgentEvent, { kind: 'usage' }> | undefined;
   const produced = message.producedFiles ?? [];
   // Track which forms the user submitted in this session so we lock them
   // immediately on click (without waiting for the parent to re-render).
   const [locallySubmitted, setLocallySubmitted] = useState<Set<string>>(() => new Set());
 
   return (
-    <div className="msg assistant">
-      <div className="role">{t('assistant.role')}</div>
-      <div className="assistant-flow">
+    <div className='msg assistant'>
+      <div className='role'>{t('assistant.role')}</div>
+      <div className='assistant-flow'>
         {blocks.length === 0 && streaming ? (
           <WaitingPill startedAt={message.startedAt} latestStatus={latestStatusLabel(events)} />
         ) : null}
@@ -100,18 +98,9 @@ export function AssistantMessage({
           return null;
         })}
         {!streaming && produced.length > 0 && projectId ? (
-          <ProducedFiles
-            files={produced}
-            projectId={projectId}
-            onRequestOpenFile={onRequestOpenFile}
-          />
+          <ProducedFiles files={produced} projectId={projectId} onRequestOpenFile={onRequestOpenFile} />
         ) : null}
-        <AssistantFooter
-          streaming={streaming}
-          startedAt={message.startedAt}
-          endedAt={message.endedAt}
-          usage={usage}
-        />
+        <AssistantFooter streaming={streaming} startedAt={message.startedAt} endedAt={message.endedAt} usage={usage} />
       </div>
     </div>
   );
@@ -132,19 +121,13 @@ function AssistantFooter({
   const elapsed = useLiveElapsed(streaming, startedAt, endedAt);
   if (!streaming && !elapsed && !usage) return null;
   return (
-    <div className="assistant-footer">
-      <span className="dot" data-active={streaming ? 'true' : 'false'} />
-      <span className="assistant-label">
-        {streaming ? t('assistant.workingLabel') : t('assistant.doneLabel')}
-      </span>
-      <span className="assistant-stats">
+    <div className='assistant-footer'>
+      <span className='dot' data-active={streaming ? 'true' : 'false'} />
+      <span className='assistant-label'>{streaming ? t('assistant.workingLabel') : t('assistant.doneLabel')}</span>
+      <span className='assistant-stats'>
         {elapsed}
-        {usage?.outputTokens != null
-          ? ` · ${t('assistant.outTokens', { n: usage.outputTokens })}`
-          : ''}
-        {typeof usage?.costUsd === 'number'
-          ? ` · $${usage.costUsd.toFixed(4)}`
-          : ''}
+        {usage?.outputTokens != null ? ` · ${t('assistant.outTokens', { n: usage.outputTokens })}` : ''}
+        {typeof usage?.costUsd === 'number' ? ` · $${usage.costUsd.toFixed(4)}` : ''}
       </span>
     </div>
   );
@@ -161,31 +144,25 @@ function ProducedFiles({
 }) {
   const t = useT();
   return (
-    <div className="produced-files">
-      <div className="produced-files-label">{t('assistant.producedFiles')}</div>
-      <div className="produced-files-list">
+    <div className='produced-files'>
+      <div className='produced-files-label'>{t('assistant.producedFiles')}</div>
+      <div className='produced-files-list'>
         {files.map((f) => (
-          <div key={f.name} className="produced-file">
-            <span className="produced-file-icon" aria-hidden>
+          <div key={f.name} className='produced-file'>
+            <span className='produced-file-icon' aria-hidden>
               <Icon name={kindIconName(f.kind)} size={14} />
             </span>
-            <span className="produced-file-name" title={f.name}>{f.name}</span>
-            <span className="produced-file-size">{humanBytes(f.size)}</span>
-            <div className="produced-file-actions">
+            <span className='produced-file-name' title={f.name}>
+              {f.name}
+            </span>
+            <span className='produced-file-size'>{humanBytes(f.size)}</span>
+            <div className='produced-file-actions'>
               {onRequestOpenFile ? (
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => onRequestOpenFile(f.name)}
-                >
+                <button type='button' className='ghost' onClick={() => onRequestOpenFile(f.name)}>
                   {t('assistant.openFile')}
                 </button>
               ) : null}
-              <a
-                className="ghost-link"
-                href={projectFileUrl(projectId, f.name)}
-                download={f.name}
-              >
+              <a className='ghost-link' href={projectFileUrl(projectId, f.name)} download={f.name}>
                 {t('assistant.downloadFile')}
               </a>
             </div>
@@ -196,9 +173,7 @@ function ProducedFiles({
   );
 }
 
-function kindIconName(
-  kind: ProjectFile['kind'],
-): 'file-code' | 'image' | 'pencil' | 'file' {
+function kindIconName(kind: ProjectFile['kind']): 'file-code' | 'image' | 'pencil' | 'file' {
   if (kind === 'html') return 'file-code';
   if (kind === 'image') return 'image';
   if (kind === 'sketch') return 'pencil';
@@ -233,19 +208,13 @@ function WaitingPill({
   }, []);
   const elapsedSec = startedAt ? Math.max(0, Math.round((now - startedAt) / 1000)) : 0;
   const slow = elapsedSec >= 12;
-  const label = latestStatus?.label
-    ? humanizeStatus(latestStatus.label, t)
-    : t('assistant.waitingFirstOutput');
+  const label = latestStatus?.label ? humanizeStatus(latestStatus.label, t) : t('assistant.waitingFirstOutput');
   return (
-    <div className="op-waiting">
-      <span className="op-waiting-dot" aria-hidden />
-      <span className="op-waiting-label">{label}</span>
-      {latestStatus?.detail ? (
-        <code className="op-waiting-detail">{latestStatus.detail}</code>
-      ) : null}
-      {slow ? (
-        <span className="op-waiting-hint">{t('assistant.slowHint')}</span>
-      ) : null}
+    <div className='op-waiting'>
+      <span className='op-waiting-dot' aria-hidden />
+      <span className='op-waiting-label'>{label}</span>
+      {latestStatus?.detail ? <code className='op-waiting-detail'>{latestStatus.detail}</code> : null}
+      {slow ? <span className='op-waiting-hint'>{t('assistant.slowHint')}</span> : null}
     </div>
   );
 }
@@ -259,9 +228,7 @@ function humanizeStatus(label: string, t: (k: keyof Dict) => string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function latestStatusLabel(
-  events: AgentEvent[],
-): { label: string; detail?: string | undefined } | undefined {
+function latestStatusLabel(events: AgentEvent[]): { label: string; detail?: string | undefined } | undefined {
   for (let i = events.length - 1; i >= 0; i--) {
     const ev = events[i]!;
     if (ev.kind === 'status') return { label: ev.label, detail: ev.detail };
@@ -284,25 +251,30 @@ function ProseBlock({
   locallySubmitted: Set<string>;
   onSubmitForm: (formId: string, text: string) => void;
 }) {
-  const cleaned = useMemo(() => stripArtifact(text), [text]);
+  const cleaned = useMemo(() => stripArtifact(stripPseudoToolTheater(text, streaming)), [text, streaming]);
   const segments = useMemo(() => splitOnQuestionForms(cleaned), [cleaned]);
   // Each text segment is further split on `<system-reminder>` blocks so
   // those render as their own collapsible chip instead of raw markup.
-  const renderable = segments.flatMap((seg, idx): Array<
-    | { key: string; kind: 'text'; text: string }
-    | { key: string; kind: 'reminder'; text: string }
-    | { key: string; kind: 'form'; form: QuestionForm }
-  > => {
-    if (seg.kind === 'form') {
-      return [{ key: `f-${idx}`, kind: 'form', form: seg.form }];
-    }
-    if (seg.text.trim().length === 0) return [];
-    const sub = splitSystemReminders(seg.text);
-    return sub.map((s, j) => ({ key: `t-${idx}-${j}`, kind: s.kind, text: s.text }));
-  });
+  const renderable = segments.flatMap(
+    (
+      seg,
+      idx,
+    ): Array<
+      | { key: string; kind: 'text'; text: string }
+      | { key: string; kind: 'reminder'; text: string }
+      | { key: string; kind: 'form'; form: QuestionForm }
+    > => {
+      if (seg.kind === 'form') {
+        return [{ key: `f-${idx}`, kind: 'form', form: seg.form }];
+      }
+      if (seg.text.trim().length === 0) return [];
+      const sub = splitSystemReminders(seg.text);
+      return sub.map((s, j) => ({ key: `t-${idx}-${j}`, kind: s.kind, text: s.text }));
+    },
+  );
   if (renderable.length === 0) return null;
   return (
-    <div className="prose-block">
+    <div className='prose-block'>
       {renderable.map((seg) => {
         if (seg.kind === 'reminder') {
           return <SystemReminderBlock key={seg.key} text={seg.text} />;
@@ -348,8 +320,7 @@ function FormBlock({
     return parseSubmittedAnswers(form, nextUserContent);
   }, [form, nextUserContent]);
   const wasSubmittedLocally = locallySubmitted.has(form.id);
-  const interactive =
-    isLastAssistant && !streaming && !submittedFromHistory && !wasSubmittedLocally;
+  const interactive = isLastAssistant && !streaming && !submittedFromHistory && !wasSubmittedLocally;
   return (
     <QuestionFormView
       form={form}
@@ -366,25 +337,21 @@ function SystemReminderBlock({ text }: { text: string }) {
   const trimmed = text.trim();
   const preview = trimmed.split('\n')[0]?.slice(0, 120) ?? '';
   return (
-    <div className="system-reminder-block">
-      <button
-        className="system-reminder-toggle"
-        onClick={() => setOpen((o) => !o)}
-        type="button"
-      >
-        <span className="system-reminder-icon" aria-hidden>
-          <Icon name="settings" size={12} />
+    <div className='system-reminder-block'>
+      <button className='system-reminder-toggle' onClick={() => setOpen((o) => !o)} type='button'>
+        <span className='system-reminder-icon' aria-hidden>
+          <Icon name='settings' size={12} />
         </span>
-        <span className="system-reminder-label">{t('assistant.systemReminder')}</span>
-        <span className="system-reminder-preview">
+        <span className='system-reminder-label'>{t('assistant.systemReminder')}</span>
+        <span className='system-reminder-preview'>
           {open ? '' : preview}
           {!open && trimmed.length > preview.length ? '…' : ''}
         </span>
-        <span className="system-reminder-chev">
+        <span className='system-reminder-chev'>
           <Icon name={open ? 'chevron-down' : 'chevron-right'} size={11} />
         </span>
       </button>
-      {open ? <pre className="system-reminder-body">{trimmed}</pre> : null}
+      {open ? <pre className='system-reminder-body'>{trimmed}</pre> : null}
     </div>
   );
 }
@@ -394,27 +361,30 @@ function ThinkingBlock({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const preview = text.trim().slice(0, 140);
   return (
-    <div className="thinking-block">
-      <button className="thinking-toggle" onClick={() => setOpen((o) => !o)}>
-        <span className="thinking-icon" aria-hidden>
-          <Icon name="sparkles" size={12} />
+    <div className='thinking-block'>
+      <button className='thinking-toggle' onClick={() => setOpen((o) => !o)}>
+        <span className='thinking-icon' aria-hidden>
+          <Icon name='sparkles' size={12} />
         </span>
-        <span className="thinking-label">{t('assistant.thinking')}</span>
-        <span className="thinking-preview">{open ? '' : preview}{!open && text.length > 140 ? '…' : ''}</span>
-        <span className="thinking-chev">
+        <span className='thinking-label'>{t('assistant.thinking')}</span>
+        <span className='thinking-preview'>
+          {open ? '' : preview}
+          {!open && text.length > 140 ? '…' : ''}
+        </span>
+        <span className='thinking-chev'>
           <Icon name={open ? 'chevron-down' : 'chevron-right'} size={11} />
         </span>
       </button>
-      {open ? <pre className="thinking-body">{text}</pre> : null}
+      {open ? <pre className='thinking-body'>{text}</pre> : null}
     </div>
   );
 }
 
 function StatusPill({ label, detail }: { label: string; detail?: string | undefined }) {
   return (
-    <div className="status-pill">
-      <span className="status-label">{label}</span>
-      {detail ? <span className="status-detail">{detail}</span> : null}
+    <div className='status-pill'>
+      <span className='status-label'>{label}</span>
+      {detail ? <span className='status-detail'>{detail}</span> : null}
     </div>
   );
 }
@@ -452,21 +422,25 @@ function ToolGroupCard({
   const summary = summarizeGroup(items, t);
   const running = items.some((it) => !it.result);
   return (
-    <div className="action-card">
+    <div className='action-card'>
       <button
-        type="button"
+        type='button'
         className={`action-card-toggle ${running ? 'running' : ''}`}
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
       >
-        <span className="ico" aria-hidden>{summary.icon}</span>
-        <span className="summary"><strong>{summary.label}</strong></span>
-        <span className="chev" aria-hidden>
+        <span className='ico' aria-hidden>
+          {summary.icon}
+        </span>
+        <span className='summary'>
+          <strong>{summary.label}</strong>
+        </span>
+        <span className='chev' aria-hidden>
           <Icon name={open ? 'chevron-down' : 'chevron-right'} size={11} />
         </span>
       </button>
       {open ? (
-        <div className="action-card-body">
+        <div className='action-card-body'>
           {items.map((it, i) => (
             <ToolCard
               key={i}
@@ -523,11 +497,7 @@ function familyIcon(family: string): string {
   return '·';
 }
 
-function countLabel(
-  family: string,
-  n: number,
-  t: (k: keyof Dict) => string,
-): string {
+function countLabel(family: string, n: number, t: (k: keyof Dict) => string): string {
   const verb =
     family === 'edit'
       ? t('assistant.verbEditing')
@@ -547,19 +517,13 @@ function countLabel(
   return n > 1 ? `${verb} ×${n}` : verb;
 }
 
-function verbForState(
-  it: ToolItem,
-  t: (k: keyof Dict) => string,
-): string {
+function verbForState(it: ToolItem, t: (k: keyof Dict) => string): string {
   if (!it.result) return t('assistant.verbRunning');
   if (it.result.isError) return t('tool.error');
   return t('tool.done');
 }
 
-function lastStateLabel(
-  verbs: string[],
-  t: (k: keyof Dict) => string,
-): string {
+function lastStateLabel(verbs: string[], t: (k: keyof Dict) => string): string {
   const set = new Set(verbs);
   if (set.size === 1) return verbs[verbs.length - 1] ?? '';
   // Mixed states: surface error first, else running, else any.
@@ -604,11 +568,7 @@ function buildBlocks(events: AgentEvent[]): Block[] {
       const item: ToolItem = result ? { use: ev, result } : { use: ev };
       const last = out[out.length - 1];
       const fam = toolFamily(ev.name);
-      if (
-        last &&
-        last.kind === 'tool-group' &&
-        toolFamily(last.items[last.items.length - 1]!.use.name) === fam
-      ) {
+      if (last && last.kind === 'tool-group' && toolFamily(last.items[last.items.length - 1]!.use.name) === fam) {
         last.items.push(item);
       } else {
         out.push({ kind: 'tool-group', items: [item] });
@@ -617,7 +577,8 @@ function buildBlocks(events: AgentEvent[]): Block[] {
     }
     if (ev.kind === 'tool_result') continue;
     if (ev.kind === 'status') {
-      if (ev.label === 'streaming' || ev.label === 'starting' || ev.label === 'requesting' || ev.label === 'thinking') continue;
+      if (ev.label === 'streaming' || ev.label === 'starting' || ev.label === 'requesting' || ev.label === 'thinking')
+        continue;
       const last = out[out.length - 1];
       if (last && last.kind === 'status' && last.label === ev.label) continue;
       out.push({ kind: 'status', label: ev.label, detail: ev.detail });
@@ -632,9 +593,18 @@ function stripArtifact(content: string): string {
   if (open === -1) return content;
   const closeTag = content.indexOf('>', open);
   const end = content.indexOf('</artifact>', closeTag);
-  return (
-    content.slice(0, open) + content.slice(end === -1 ? content.length : end + 11)
-  ).trim();
+  return (content.slice(0, open) + content.slice(end === -1 ? content.length : end + 11)).trim();
+}
+
+/** Strip fake Claude Code / agent stream markup local LLMs often hallucinate. */
+function stripPseudoToolTheater(content: string, streaming: boolean): string {
+  let t = content.replace(/<tool_code>[\s\S]*?<\/tool_code>/gi, '');
+  t = t.replace(/<progress-update[^>]*\/>/gi, '');
+  t = t.replace(/<progress-update[\s\S]*?<\/progress-update>/gi, '');
+  if (!streaming && /<tool_code>/i.test(t) && !/<\/tool_code>/i.test(t)) {
+    t = t.replace(/<tool_code>[\s\S]*/i, '');
+  }
+  return t.trimEnd();
 }
 
 // Split prose into alternating plain-text and `<system-reminder>` segments.
@@ -663,19 +633,11 @@ function splitSystemReminders(input: string): ProseSegment[] {
   // Drop any orphan tags that survived (open without close, or vice versa)
   // and discard text segments that became empty after stripping.
   return out
-    .map((seg) =>
-      seg.kind === 'text'
-        ? { ...seg, text: seg.text.replace(/<\/?system-reminder>/g, '') }
-        : seg,
-    )
+    .map((seg) => (seg.kind === 'text' ? { ...seg, text: seg.text.replace(/<\/?system-reminder>/g, '') } : seg))
     .filter((seg) => seg.kind === 'reminder' || seg.text.trim().length > 0);
 }
 
-function useLiveElapsed(
-  streaming: boolean,
-  startedAt: number | undefined,
-  endedAt: number | undefined,
-): string {
+function useLiveElapsed(streaming: boolean, startedAt: number | undefined, endedAt: number | undefined): string {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!streaming) return;
